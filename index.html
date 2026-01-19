@@ -2141,7 +2141,7 @@
             feedback.textContent = `พบที่อยู่: ${data[0].display_name}`;
 
             // Move map and update the rainfall risk data for insurance assessment
-            state.map.flyTo([lat, lon], 14);
+            state.map.flyTo([lat, lon], 13);
             highlightLocation(lat, lon, { pan: false, fromClick: true });
           } else {
             feedback.textContent = "ไม่พบที่อยู่ กรุณาลองระบุชื่อเขตหรือจังหวัด (Address not found)";
