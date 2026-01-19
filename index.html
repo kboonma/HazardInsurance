@@ -396,7 +396,23 @@
         display: inline-flex;
       }
     }
+    /* Insurance Risk Badge Colors */
+    .risk-badge {
+      text-align: center;
+      font-weight: bold;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      color: white;
+      display: none; /* Hidden until a user clicks the map */
+      text-transform: uppercase;
+      font-size: 14px;
+    }
+    .risk-low { background: #27ab83; }      /* Green */
+    .risk-med { background: #f59e0b; }      /* Orange */
+    .risk-high { background: #ef4444; }     /* Red */
   </style>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
   <button id="sidebarToggle" type="button" aria-controls="sidebar" aria-expanded="false">☰ Tools</button>
@@ -406,6 +422,7 @@
       <div id="sidebarHeader">
         <div id="sidebarTitle">
           <h1>Thailand Rainfall Intensities</h1>
+          <div id="riskBadge" class="risk-badge"></div>
           <div id="loadingNotice">Loading dataset…</div>
         </div>
         <button id="sidebarCollapseBtn" type="button" aria-label="Collapse controls">« Hide</button>
@@ -437,10 +454,11 @@
       <div class="info-block">
         <h2>Lookup Point</h2>
         <form id="searchForm">
-          <input id="searchInput" placeholder="Lat, Lon (e.g., 13.75, 100.5)" autocomplete="off" />
-          <button type="submit">Go</button>
+          <input id="searchInput" placeholder="Enter address or Soi (e.g. Sukhumvit 11)" autocomplete="off" />
+          <button type="submit">Search</button>
         </form>
-        <div id="searchFeedback"></div>
+        <div id="searchFeedback"
+          style="font-size: 13px; margin-top: 4px; color: #486581; min-height: 16px; font-family: 'Sarabun', sans-serif;"></div>
       </div>
 
       <div class="info-block">
@@ -463,6 +481,15 @@
         <div class="slider-row">
         </div>
       </div>
+
+      <div class="info-block">
+        <h2 style="font-size: 14px; margin-top: 0;">Portfolio Upload</h2>
+        <p style="font-size: 12px; color: #486581;">Upload Excel/CSV with Name, Postcode, or GPS.</p>
+        <input type="file" id="portfolioUpload" accept=".csv, .xlsx, .xls" style="font-size: 12px;" />
+        <div id="uploadFeedback" style="font-size: 11px; margin-top: 5px; color: #2f6fdd;"></div>
+      </div>
+
+
       <div id="citation">
         Data sources:<br />
         <a href="https://doi.org/10.5281/zenodo.15473689" target="_blank" rel="noopener">
@@ -575,6 +602,29 @@
       adjustLayerMarkers(state.gaugeLayer);
       adjustLayerMarkers(state.riverLayer);
     }
+    // Function to interpret rainfall intensity for non-technical users
+    function updateRiskBadge(value) {
+      const badge = document.getElementById("riskBadge");
+
+      // If there is no data at this spot, hide the badge
+      if (value === null || !Number.isFinite(value)) {
+        badge.style.display = "none";
+        return;
+      }
+
+      badge.style.display = "block";
+
+      if (value < 20) {
+        badge.className = "risk-badge risk-low";
+        badge.textContent = "Low Risk: Standard Drainage Handles This";
+      } else if (value <= 50) {
+        badge.className = "risk-badge risk-med";
+        badge.textContent = "Moderate Risk: Potential Flash Floods";
+      } else {
+        badge.className = "risk-badge risk-high";
+        badge.textContent = "High Risk: Drainage Capacity Exceeded";
+      }
+    }
 
     async function init() {
       setupMap();
@@ -666,6 +716,7 @@
       map.on("zoomend", updateMarkerSizes);
       map.whenReady(() => updateMarkerSizes());
       setTimeout(() => map.invalidateSize(), 50);
+      state.portfolioLayer = L.layerGroup().addTo(state.map);
     }
 
     async function fetchDataset() {
@@ -2009,6 +2060,7 @@
       const unitsLabel = state.currentUnits || defaultUnits;
       const valueText = info.value == null ? "no data" : `${info.value.toFixed(2)} ${unitsLabel}`;
       const message = `Lat ${info.latCenter.toFixed(2)}, Lon ${info.lonCenter.toFixed(2)} → ${valueText}`;
+      updateRiskBadge(info.value);
       document.getElementById("searchFeedback").textContent = "";
       refreshSelectionInfo(message);
 
@@ -2061,27 +2113,97 @@
       return Math.max(min, Math.min(max, value));
     }
 
-    document.getElementById("searchForm").addEventListener("submit", (event) => {
-      event.preventDefault();
-      const input = document.getElementById("searchInput").value.trim();
-      if (!input) {
-        document.getElementById("searchFeedback").textContent = "Enter latitude and longitude separated by a comma.";
-        return;
-      }
-      const parts = input.split(/[,\\s]+/).filter(Boolean);
-      if (parts.length !== 2) {
-        document.getElementById("searchFeedback").textContent = "Please provide exactly two numbers: latitude, longitude.";
-        return;
-      }
-      const lat = Number(parts[0]);
-      const lon = Number(parts[1]);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        document.getElementById("searchFeedback").textContent = "Latitude and longitude must be valid numbers.";
-        return;
-      }
-      highlightLocation(lat, lon, { pan: true, fromClick: false });
-    });
+    document.getElementById("searchForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const input = document.getElementById("searchInput").value.trim();
+        const feedback = document.getElementById("searchFeedback");
 
+        if (!input) {
+          feedback.textContent = "กรุณากรอกที่อยู่ (Please enter an address)";
+          return;
+        }
+
+        feedback.textContent = "กำลังค้นหา... (Searching...)";
+
+        try {
+          // We add 'accept-language=th' to force Thai results
+          // and 'countrycodes=th' to strictly limit searching to Thailand
+          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&countrycodes=th&accept-language=th`;
+
+          const response = await fetch(url);
+          const data = await response.json();
+
+          if (data && data.length > 0) {
+            const lat = parseFloat(data[0].lat);
+            const lon = parseFloat(data[0].lon);
+
+            // Displays the Thai address found
+            feedback.textContent = `พบที่อยู่: ${data[0].display_name}`;
+
+            // Move map and update the rainfall risk data for insurance assessment
+            state.map.flyTo([lat, lon], 14);
+            highlightLocation(lat, lon, { pan: false, fromClick: true });
+          } else {
+            feedback.textContent = "ไม่พบที่อยู่ กรุณาลองระบุชื่อเขตหรือจังหวัด (Address not found)";
+          }
+        } catch (error) {
+          console.error("Search error:", error);
+          feedback.textContent = "เกิดข้อผิดพลาดในการเชื่อมต่อ (Service error)";
+        }
+      });
+    
+    document.getElementById("portfolioUpload").addEventListener("change", function (e) {
+        const file = e.target.files[0];
+        const feedback = document.getElementById("uploadFeedback");
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          const data = new Uint8Array(event.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+          state.portfolioLayer.clearLayers(); // Remove old pins
+          let count = 0;
+
+          jsonData.forEach(row => {
+            // Look for GPS columns (Lat/Lon)
+            const lat = row.Latitude || row.lat || row.Lat;
+            const lon = row.Longitude || row.lon || row.Lon;
+            const name = row.Name || row.Customer || "Insured Asset";
+
+            if (lat && lon) {
+              // Get the rainfall value for this specific spot
+              const info = getCellInfo(lat, lon);
+              const val = info?.value || 0;
+
+              // Determine pin color based on risk levels
+              let pinColor = "#27ab83"; // Low (Green)
+              if (val > 50) pinColor = "#ef4444"; // High (Red)
+              else if (val >= 20) pinColor = "#f59e0b"; // Med (Orange)
+
+              const marker = L.circleMarker([lat, lon], {
+                radius: 8,
+                fillColor: pinColor,
+                color: "#fff",
+                weight: 2,
+                fillOpacity: 0.9
+              }).bindPopup(`<strong>${name}</strong><br>Intensity: ${val.toFixed(2)} mm/hr`);
+
+              state.portfolioLayer.addLayer(marker);
+              count++;
+            }
+          });
+
+          feedback.textContent = `Mapped ${count} assets from Excel.`;
+          if (count > 0) {
+            state.map.fitBounds(state.portfolioLayer.getBounds());
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    
     document.addEventListener("DOMContentLoaded", init);
     window.addEventListener("resize", () => {
       if (state.map) {
