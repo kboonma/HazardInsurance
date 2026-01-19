@@ -1,0 +1,2139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Thailand Rainfall Intensity Viewer</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    html,
+    body {
+      height: 100%;
+    }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+      color: #1f2933;
+      background: #f5f7fa;
+    }
+    #layout {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+    }
+    #sidebarToggle {
+      position: fixed;
+      top: 14px;
+      left: 16px;
+      z-index: 1300;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      background: rgba(16, 42, 67, 0.9);
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.28);
+    }
+    #sidebarToggle:hover {
+      background: rgba(16, 42, 67, 1);
+    }
+    body.sidebar-open #sidebarToggle {
+      background: rgba(36, 59, 83, 0.95);
+    }
+    #scrim {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      z-index: 1150;
+    }
+    body.sidebar-open #scrim {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #sidebar {
+      flex: 0 0 360px;
+      width: 360px;
+      padding: 16px;
+      background: #ffffff;
+      border-right: 1px solid #d9e2ec;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      transition: transform 0.25s ease;
+      z-index: 1200;
+    }
+    #sidebar h1 {
+      font-size: 20px;
+      margin: 0;
+      color: #102a43;
+    }
+    #sidebarHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    #sidebarTitle {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    #sidebarCollapseBtn {
+      border: none;
+      background: none;
+      color: #2f6fdd;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+    #sidebarCollapseBtn:hover {
+      background: rgba(47, 111, 221, 0.12);
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      font-size: 14px;
+      font-weight: 600;
+      gap: 6px;
+      color: #243b53;
+    }
+    select,
+    input {
+      font-size: 14px;
+      padding: 6px 8px;
+      border: 1px solid #bcccdc;
+      border-radius: 4px;
+    }
+    select:focus,
+    input:focus {
+      outline: none;
+      border-color: #2680c2;
+      box-shadow: 0 0 0 2px rgba(38, 128, 194, 0.2);
+    }
+    button {
+      font-size: 14px;
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: none;
+      background: #2f6fdd;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1f60cc;
+    }
+    #map {
+      flex: 1;
+      min-height: 0;
+      height: 100%;
+      position: relative;
+    }
+    .info-block {
+      background: #f0f4f8;
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+    #chartBlock {
+      padding: 12px;
+      gap: 8px;
+    }
+    .info-block h2 {
+      margin: 0 0 6px 0;
+      font-size: 14px;
+      color: #243b53;
+    }
+    .info-line {
+      font-size: 13px;
+      margin: 4px 0;
+    }
+    #searchForm {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    #searchInput {
+      flex: 1;
+    }
+    #searchFeedback {
+      font-size: 12px;
+      margin-top: 4px;
+      color: #486581;
+      min-height: 16px;
+    }
+    .sidebar-chart {
+      width: 100%;
+      position: relative;
+    }
+    .sidebar-chart canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .chart-tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(17, 29, 74, 0.92);
+      color: #ffffff;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.3;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.25);
+      transform: translate(-50%, -110%);
+      opacity: 0;
+      transition: opacity 0.12s ease;
+      white-space: nowrap;
+    }
+    .chart-tooltip[hidden] {
+      display: none;
+    }
+    .chart-tooltip[data-visible="true"] {
+      opacity: 1;
+    }
+    #selectionControls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    #selectionControls label {
+      flex: 1;
+      min-width: 140px;
+    }
+    .label-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .info-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1px solid #829ab1;
+      color: #243b53;
+      background: #fff;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .info-button:hover {
+      background: #d9e2ec;
+    }
+    .popover {
+      position: absolute;
+      background: #ffffff;
+      border: 1px solid #bcccdc;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.4;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+      max-width: 280px;
+      z-index: 1600;
+    }
+    .popover-hidden {
+      display: none;
+    }
+    .popover strong {
+      display: block;
+      margin-bottom: 6px;
+      color: #102a43;
+    }
+    #colorbar {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    #colorbar #gradient {
+      height: 14px;
+      border-radius: 6px;
+      border: 1px solid #9fb3c8;
+      background: linear-gradient(to right, #ffffff, #000000);
+    }
+    #colorbar .labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #334e68;
+    }
+    #opacityControl {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #opacityControl .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #334e68;
+    }
+    #opacitySlider {
+      width: 100%;
+    }
+    #loadingNotice {
+      font-size: 13px;
+      color: #d64545;
+    }
+    #citation {
+      font-size: 12px;
+      color: #486581;
+    }
+    #citation a {
+      color: #2f6fdd;
+      text-decoration: none;
+    }
+    #citation a:hover {
+      text-decoration: underline;
+    }
+    .popup-content {
+      max-width: 360px;
+    }
+    .rainfall-popup .leaflet-popup-content {
+      margin: 8px 12px;
+      max-width: 340px !important;
+    }
+    @media (max-width: 900px) {
+      #sidebarToggle {
+        display: inline-flex;
+      }
+      #sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: min(320px, 85vw);
+        max-width: 360px;
+        border-right: none;
+        border-bottom: none;
+        box-shadow: 4px 0 16px rgba(15, 23, 42, 0.25);
+        transform: translateX(-100%);
+      }
+      body.sidebar-open #sidebar {
+        transform: translateX(0);
+      }
+      #map {
+        width: 100%;
+        min-height: 0;
+      }
+    }
+    @media (max-width: 600px) {
+      #sidebar {
+        padding: 12px;
+        gap: 12px;
+      }
+      #selectionControls {
+        flex-direction: column;
+        gap: 8px;
+      }
+      #searchForm {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      #searchForm button {
+        width: 100%;
+      }
+    }
+    @media (min-width: 901px) {
+      #scrim {
+        display: none !important;
+      }
+      #sidebar {
+        position: relative;
+        box-shadow: none;
+        transition: width 0.25s ease, padding 0.25s ease;
+      }
+      body.sidebar-open #sidebar {
+        flex: 0 0 360px;
+        width: 360px;
+        padding: 16px;
+        border-right: 1px solid #d9e2ec;
+        overflow-y: auto;
+      }
+      body:not(.sidebar-open) #sidebar {
+        flex: 0 0 0;
+        width: 0;
+        padding: 0;
+        border: none;
+        overflow: hidden;
+      }
+      body:not(.sidebar-open) #sidebar * {
+        opacity: 0;
+        pointer-events: none;
+      }
+      body.sidebar-open #sidebar * {
+        opacity: 1;
+        pointer-events: auto;
+        transition: opacity 0.2s ease 0.05s;
+      }
+      #sidebarToggle {
+        display: none;
+      }
+      body:not(.sidebar-open) #sidebarToggle {
+        display: inline-flex;
+      }
+    }
+  </style>
+</head>
+<body>
+  <button id="sidebarToggle" type="button" aria-controls="sidebar" aria-expanded="false">☰ Tools</button>
+  <div id="scrim" aria-hidden="true"></div>
+  <div id="layout">
+    <aside id="sidebar">
+      <div id="sidebarHeader">
+        <div id="sidebarTitle">
+          <h1>Thailand Rainfall Intensities</h1>
+          <div id="loadingNotice">Loading dataset…</div>
+        </div>
+        <button id="sidebarCollapseBtn" type="button" aria-label="Collapse controls">« Hide</button>
+      </div>
+
+      <div class="info-block" id="chartBlock" hidden>
+        <h2>Return Period Profile</h2>
+        <div id="chartLocationLabel" class="info-line">Click the map, a gauge, or a river site to plot intensities.</div>
+        <div class="sidebar-chart">
+          <canvas id="sidebarChart" width="320" height="200"></canvas>
+          <div id="chartTooltip" class="chart-tooltip" hidden></div>
+        </div>
+      </div>
+
+      <div id="selectionControls">
+        <label>
+          Rainfall duration
+          <select id="durationSelect" disabled></select>
+        </label>
+        <label>
+          <span class="label-row">
+            <span>Return period</span>
+            <button type="button" id="returnInfoBtn" class="info-button" aria-haspopup="true" aria-expanded="false" title="What is return period?">i</button>
+          </span>
+          <select id="returnSelect" disabled></select>
+        </label>
+      </div>
+
+      <div class="info-block">
+        <h2>Lookup Point</h2>
+        <form id="searchForm">
+          <input id="searchInput" placeholder="Lat, Lon (e.g., 13.75, 100.5)" autocomplete="off" />
+          <button type="submit">Go</button>
+        </form>
+        <div id="searchFeedback"></div>
+      </div>
+
+      <div class="info-block">
+        <h2>Point Value</h2>
+        <div class="info-line"><strong>Hover:</strong> <span id="hoverInfo">Move the cursor over the map.</span></div>
+        <div class="info-line"><strong>Selection:</strong> <span id="selectionInfo">Use the search box, click the map, or select a gauge or river site.</span></div>
+      </div>
+
+      <div id="colorbar" class="info-block">
+        <h2>Color Scale</h2>
+        <div id="gradient"></div>
+        <div class="labels">
+          <span id="minLabel">min</span>
+          <span id="maxLabel">max</span>
+        </div>
+      </div>
+      <div class="info-block" id="opacityControl">
+        <h2>Layer Opacity (current: <span id="opacityValue">0.75</span>)</h2>
+        <input type="range" id="opacitySlider" min="0.2" max="1" step="0.05" value="0.75" />
+        <div class="slider-row">
+        </div>
+      </div>
+      <div id="citation">
+        Data sources:<br />
+        <a href="https://doi.org/10.5281/zenodo.15473689" target="_blank" rel="noopener">
+          Hoch (2025) BURGER global IDF dataset, Water Resour. Res.
+        </a>
+        <br />
+        <a href="https://doi.org/10.2166/wcc.2023.430" target="_blank" rel="noopener">
+          Yamoat et al. (2023) Scaling IDF rainfall in Thailand, Journal of Water and Climate Change.
+        </a>
+        <br />
+        <a href="https://colab.research.google.com/drive/1FnXXSEQqU1TJhMPiNeWUTr9LnbJwZzMm?usp=sharing#scrollTo=UTbokLLWp_9o" target="_blank" rel="noopener">
+          Google Runoff Reanalysis &amp; Reforecast (GRRR) dataset.
+        </a>
+      </div>
+    </aside>
+    <div id="map"></div>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  ></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.4.2/chroma.min.js" referrerpolicy="no-referrer"></script>
+  <script>
+    const defaultUnits = "mm/hr";
+    const state = {
+      dataset: null,
+      lat: null,
+      lon: null,
+      latSpacing: null,
+      lonSpacing: null,
+      latNorthEdge: null,
+      latSouthEdge: null,
+      lonWestEdge: null,
+      lonEastEdge: null,
+      variables: {},
+      map: null,
+      cells: [],
+      gridLayer: null,
+      currentVariable: null,
+      currentScale: null,
+      highlightCell: null,
+      currentUnits: defaultUnits,
+      currentOpacity: 0.75,
+      durations: [],
+      returnPeriodsByDuration: {},
+      comboSet: new Set(),
+      selectedDuration: null,
+      selectedReturnPeriod: null,
+      selectedPoint: null,
+      selectedGauge: null,
+      selectedGaugeMarker: null,
+      selectedRiver: null,
+      layersControl: null,
+      gaugeLayer: null,
+      gaugeData: [],
+      gaugePane: null,
+      riverLayer: null,
+      riverData: [],
+      riverPane: null,
+      gaugeRenderer: null,
+      riverRenderer: null,
+      chartData: null,
+      chartPoints: [],
+      chartHoverIndex: null,
+      chartCanvas: null,
+      chartCanvasCtx: null,
+      chartTooltipEl: null,
+      chartContainer: null,
+      chartInteractionReady: false,
+    };
+
+    const BASE_COLORS = ["#0050FF", "#00FF7F", "#FFE600", "#FF4A00", "#9B00FF"];
+    const DEFAULT_DURATION = "1hr";
+    const DEFAULT_RETURN_PERIOD = "100yr";
+    const createColorScale = (min, max) =>
+      chroma
+        .scale(BASE_COLORS)
+        .mode("lab")
+        .domain([min, max]);
+    const MARKER_RADIUS = {
+      min: 6,
+      max: 40,
+      growStartZoom: 9,
+      growEndZoom: 14,
+    };
+
+    function computeMarkerRadius(zoom) {
+      if (!Number.isFinite(zoom)) return MARKER_RADIUS.min;
+      if (zoom <= MARKER_RADIUS.growStartZoom) return MARKER_RADIUS.min;
+      if (zoom >= MARKER_RADIUS.growEndZoom) return MARKER_RADIUS.max;
+      const range = MARKER_RADIUS.max - MARKER_RADIUS.min;
+      const zoomProgress =
+        (zoom - MARKER_RADIUS.growStartZoom) /
+        (MARKER_RADIUS.growEndZoom - MARKER_RADIUS.growStartZoom);
+      return MARKER_RADIUS.min + range * zoomProgress;
+    }
+
+    function updateMarkerSizes() {
+      if (!state.map) return;
+      const zoom = state.map.getZoom();
+      const radius = computeMarkerRadius(zoom);
+      const adjustLayerMarkers = (layerGroup) => {
+        if (!layerGroup || typeof layerGroup.eachLayer !== "function") return;
+        layerGroup.eachLayer((layer) => {
+          if (layer && typeof layer.setRadius === "function") {
+            layer.setRadius(radius);
+          }
+        });
+      };
+      adjustLayerMarkers(state.gaugeLayer);
+      adjustLayerMarkers(state.riverLayer);
+    }
+
+    async function init() {
+      setupMap();
+      setupSidebarToggle();
+      setupChartInteraction();
+      loadGaugeLocations();
+      loadRiverStations();
+      try {
+        const dataset = await fetchDataset();
+        state.dataset = dataset;
+        prepareCoordinates();
+        createGridLayers();
+        buildVariableIndex();
+        initializeSelectors();
+        setupOpacityControl();
+        document.getElementById("loadingNotice").textContent = "Dataset ready.";
+        await updateVariableFromSelection();
+        updateSidebarChart();
+      } catch (error) {
+        console.error(error);
+        document.getElementById("loadingNotice").textContent = "Failed to load dataset. See console for details.";
+      }
+    }
+
+    function setupMap() {
+      const map = L.map("map", {
+        preferCanvas: true,
+        attributionControl: true,
+      }).setView([15, 101], 7);
+
+      const osmLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors",
+      });
+      osmLayer.addTo(map);
+      const baseLayers = { "OpenStreetMap": osmLayer };
+      const overlayLayers = {};
+      const layersControl = L.control.layers(baseLayers, overlayLayers, { collapsed: true }).addTo(map);
+
+      map.on("mousemove", (evt) => handleHover(evt.latlng));
+      map.on("click", (evt) => highlightLocation(evt.latlng.lat, evt.latlng.lng, { pan: false, fromClick: true }));
+
+      const gaugePane = map.createPane("gaugePane");
+      gaugePane.style.zIndex = 650;
+      gaugePane.style.pointerEvents = "auto";
+      const riverPane = map.createPane("riverPane");
+      riverPane.style.zIndex = 655;
+      riverPane.style.pointerEvents = "auto";
+      const gaugeRenderer = L.svg({ pane: "gaugePane" }).addTo(map);
+      const riverRenderer = L.svg({ pane: "riverPane" }).addTo(map);
+      map.on("overlayremove", (evt) => {
+        if (evt.layer === state.gaugeLayer && state.selectedGauge) {
+          state.selectedGauge = null;
+          state.selectedGaugeMarker = null;
+          refreshSelectionInfo();
+          updateSidebarChart();
+        }
+        if (evt.layer === state.riverLayer && state.selectedRiver) {
+          state.selectedRiver = null;
+          refreshSelectionInfo();
+          updateSidebarChart();
+        }
+        if (evt.layer === state.gridLayer) {
+          hideGridLayer();
+        }
+      });
+
+      map.on("overlayadd", (evt) => {
+        if (evt.layer === state.gaugeLayer) {
+          bringOverlayToFront("gauge");
+          updateMarkerSizes();
+        }
+        if (evt.layer === state.riverLayer) {
+          bringOverlayToFront("river");
+          updateMarkerSizes();
+        }
+        if (evt.layer === state.gridLayer) {
+          showGridLayer();
+          bringOverlayToFront("grid");
+        }
+      });
+
+      state.map = map;
+      state.layersControl = layersControl;
+      state.gaugePane = gaugePane;
+      state.riverPane = riverPane;
+      state.gaugeRenderer = gaugeRenderer;
+      state.riverRenderer = riverRenderer;
+      map.on("zoomend", updateMarkerSizes);
+      map.whenReady(() => updateMarkerSizes());
+      setTimeout(() => map.invalidateSize(), 50);
+    }
+
+    async function fetchDataset() {
+      const response = await fetch("BURGER_1.0_thailand.json");
+      if (!response.ok) {
+        throw new Error(`Unable to fetch dataset file (status ${response.status})`);
+      }
+      return response.json();
+    }
+
+    async function loadGaugeLocations() {
+      if (state.gaugeLayer) return;
+      try {
+        const response = await fetch("thailand_gauge_IDF.csv");
+        if (!response.ok) {
+          throw new Error(`Unable to fetch gauge file (status ${response.status})`);
+        }
+        const csvText = await response.text();
+        const gauges = parseGaugeCSV(csvText);
+        if (!gauges.length) {
+          console.warn("Gauge CSV parsed but no gauge records were found.");
+          return;
+        }
+        const markers = gauges.map(createGaugeMarker).filter(Boolean);
+        if (!markers.length) {
+          console.warn("Gauge markers were not created due to invalid coordinates.");
+          return;
+        }
+        const gaugeLayer = L.layerGroup(markers);
+        state.gaugeLayer = gaugeLayer;
+        state.gaugeData = gauges;
+        if (state.layersControl) {
+          state.layersControl.addOverlay(gaugeLayer, "Gauge Stations");
+        }
+        if (state.map) {
+          gaugeLayer.addTo(state.map);
+          updateMarkerSizes();
+        }
+      } catch (error) {
+        console.error("Failed to load gauge locations.", error);
+      }
+    }
+
+    function parseGaugeCSV(csvText) {
+      if (!csvText) return [];
+      const lines = csvText.trim().split(/\r?\n/);
+      if (lines.length <= 1) return [];
+      const headers = lines[0].split(",");
+      const stationIdx = headers.indexOf("station");
+      const latIdx = headers.indexOf("lat");
+      const lonIdx = headers.indexOf("lon");
+      if (stationIdx === -1 || latIdx === -1 || lonIdx === -1) {
+        console.warn("Gauge CSV is missing required columns.");
+        return [];
+      }
+      const intensityColumns = headers
+        .map((header, idx) => ({ header: header.trim(), idx }))
+        .filter(({ header }) => /^I_/i.test(header))
+        .map(({ header, idx }) => {
+          const meta = parseGaugeIntensityHeader(header);
+          if (!meta) return null;
+          return { idx, ...meta };
+        })
+        .filter(Boolean);
+
+      const gauges = [];
+      for (let i = 1; i < lines.length; i += 1) {
+        const rawLine = lines[i];
+        if (!rawLine) continue;
+        const parts = rawLine.split(",");
+        if (parts.length <= Math.max(stationIdx, latIdx, lonIdx)) continue;
+        const station = parts[stationIdx]?.trim();
+        const lat = parseFloat(parts[latIdx]);
+        const lon = parseFloat(parts[lonIdx]);
+        if (!station || Number.isNaN(lat) || Number.isNaN(lon)) continue;
+        const intensities = {};
+        intensityColumns.forEach(({ idx, durationKey, returnPeriodKey }) => {
+          if (idx >= parts.length) return;
+          const value = parseFloat(parts[idx]);
+          if (!Number.isFinite(value)) return;
+          if (!intensities[durationKey]) {
+            intensities[durationKey] = {};
+          }
+          intensities[durationKey][returnPeriodKey] = value;
+        });
+        gauges.push({ station, lat, lon, intensities });
+      }
+      return gauges;
+    }
+
+    function createGaugeMarker(gauge) {
+      if (!gauge) return null;
+      const { lat, lon, station } = gauge;
+      if (Number.isNaN(lat) || Number.isNaN(lon)) return null;
+      const markerOptions = {
+        radius: computeMarkerRadius(state.map ? state.map.getZoom() : undefined),
+        color: "#111827",
+        weight: 2,
+        fillColor: "#1f2937",
+        fillOpacity: 0.7,
+        bubblingMouseEvents: false,
+        riseOnHover: true,
+      };
+      if (state.gaugePane) {
+        markerOptions.pane = "gaugePane";
+      }
+      if (state.gaugeRenderer) {
+        markerOptions.renderer = state.gaugeRenderer;
+      }
+      const marker = L.circleMarker([lat, lon], markerOptions);
+      marker.on("add", () => {
+        const el = marker.getElement();
+        if (el) {
+          el.style.cursor = "pointer";
+        }
+      });
+      marker.bindPopup("");
+      marker.on("click", (evt) => {
+        if (evt && typeof L !== "undefined" && L.DomEvent && evt.originalEvent) {
+          L.DomEvent.stop(evt.originalEvent);
+        }
+        handleGaugeClick(gauge, marker);
+        marker.setPopupContent(buildGaugePopupContent(gauge));
+        marker.openPopup();
+      });
+      return marker;
+    }
+
+    async function loadRiverStations() {
+      if (state.riverLayer) return;
+      try {
+        const response = await fetch("GRRR_thailand_river_discharge_rps.json");
+        if (!response.ok) {
+          throw new Error(`Unable to fetch river discharge file (status ${response.status})`);
+        }
+        const raw = await response.json();
+        const rivers = parseRiverDataset(raw);
+        if (!rivers.length) {
+          console.warn("River discharge dataset was loaded but no river records were parsed.");
+          return;
+        }
+        const markers = rivers.map(createRiverMarker).filter(Boolean);
+        if (!markers.length) {
+          console.warn("River markers were not created due to invalid coordinates.");
+          return;
+        }
+        const riverLayer = L.layerGroup(markers);
+        state.riverLayer = riverLayer;
+        state.riverData = rivers;
+        if (state.layersControl) {
+          state.layersControl.addOverlay(riverLayer, "River Basins");
+        }
+        if (state.map) {
+          riverLayer.addTo(state.map);
+          updateMarkerSizes();
+        }
+      } catch (error) {
+        console.error("Failed to load river discharge stations.", error);
+      }
+    }
+
+    function parseRiverDataset(raw) {
+      if (!raw || typeof raw !== "object") return [];
+      const rivers = [];
+      Object.entries(raw).forEach(([id, entry]) => {
+        if (!entry || typeof entry !== "object") return;
+        const lat = parseFloat(entry.latitude ?? entry.lat ?? entry.Latitude);
+        const lon = parseFloat(entry.longitude ?? entry.lon ?? entry.Longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+        const returnPeriods = {};
+        Object.entries(entry).forEach(([key, value]) => {
+          const match = /^rp(\d+)/i.exec(key);
+          if (!match) return;
+          const rpNumber = Number(match[1]);
+          if (!Number.isFinite(rpNumber)) return;
+          const numericValue = Number(value);
+          if (!Number.isFinite(numericValue)) return;
+          const label = `${rpNumber}yr`;
+          returnPeriods[label] = numericValue;
+        });
+        if (!Object.keys(returnPeriods).length) return;
+        const name = id;
+        rivers.push({
+          id,
+          name,
+          lat,
+          lon,
+          returnPeriods,
+          units: "m³/s",
+        });
+      });
+      return rivers;
+    }
+
+    function createRiverMarker(river) {
+      if (!river) return null;
+      const { lat, lon, name } = river;
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+      const markerOptions = {
+        radius: computeMarkerRadius(state.map ? state.map.getZoom() : undefined),
+        color: "#2563eb",
+        weight: 2,
+        fillColor: "#60a5fa",
+        fillOpacity: 0.4,
+        bubblingMouseEvents: false,
+        riseOnHover: true,
+      };
+      if (state.riverPane) {
+        markerOptions.pane = "riverPane";
+      }
+      if (state.riverRenderer) {
+        markerOptions.renderer = state.riverRenderer;
+      }
+      const marker = L.circleMarker([lat, lon], markerOptions);
+      marker.on("add", () => {
+        const el = marker.getElement();
+        if (el) {
+          el.style.cursor = "pointer";
+        }
+      });
+      marker.bindPopup(`
+        <div class="popup-content">
+          <div>River basin: <strong>${name}</strong></div>
+          <div>${lat.toFixed(3)}°N, ${lon.toFixed(3)}°E</div>
+          <div>(See discharge plot)</div>
+        </div>
+      `);
+      marker.on("click", (evt) => {
+        if (evt && typeof L !== "undefined" && L.DomEvent && evt.originalEvent) {
+          L.DomEvent.stop(evt.originalEvent);
+        }
+        handleRiverClick(river);
+        marker.openPopup();
+      });
+      return marker;
+    }
+
+    function parseGaugeIntensityHeader(header) {
+      if (!header) return null;
+      const parts = header.split("_");
+      if (parts.length < 3) return null;
+      const durationToken = parts[1];
+      const returnToken = parts[2];
+      const durationKey = normalizeGaugeDurationToken(durationToken);
+      const returnPeriodKey = normalizeGaugeReturnToken(returnToken);
+      if (!durationKey || !returnPeriodKey) return null;
+      return { durationKey, returnPeriodKey };
+    }
+
+    function normalizeGaugeDurationToken(token) {
+      if (!token) return null;
+      let normalizedToken = token.toLowerCase();
+      if (normalizedToken.endsWith("h")) {
+        normalizedToken = normalizedToken.slice(0, -1).replace(/p/g, ".");
+        if (!normalizedToken) return null;
+        const numeric = Number(normalizedToken);
+        if (!Number.isFinite(numeric)) return null;
+        const text = Number.isInteger(numeric) ? numeric.toString() : numeric.toString();
+        return `${text}hr`;
+      }
+      return null;
+    }
+
+    function normalizeGaugeReturnToken(token) {
+      if (!token) return null;
+      const numericPart = token.replace(/[^0-9.]/g, "");
+      if (!numericPart) return null;
+      const numeric = Number(numericPart);
+      if (!Number.isFinite(numeric)) return null;
+      const text = Number.isInteger(numeric) ? numeric.toString() : numeric.toString();
+      return `${text}yr`;
+    }
+
+    function handleGaugeClick(gauge, marker = null) {
+      if (!gauge) return;
+      state.selectedGauge = gauge;
+      state.selectedGaugeMarker = marker || state.selectedGaugeMarker;
+      state.selectedPoint = null;
+      state.selectedRiver = null;
+      if (state.highlightCell && state.map) {
+        state.map.removeLayer(state.highlightCell);
+        state.highlightCell = null;
+      }
+      document.getElementById("searchFeedback").textContent = "";
+      const locationText = `${gauge.lat.toFixed(2)}°N, ${gauge.lon.toFixed(2)}°E`;
+      refreshSelectionInfo(`Gauge station ${gauge.station} (${locationText})`);
+      updateSidebarChart();
+    }
+
+    function buildGaugeSeries(gauge, durationKey) {
+      if (!gauge || !durationKey) {
+        return { labels: [], values: [] };
+      }
+      const durationData = gauge.intensities?.[durationKey];
+      if (!durationData) {
+        return { labels: [], values: [] };
+      }
+      const entries = Object.entries(durationData)
+        .filter(([, value]) => Number.isFinite(value))
+        .map(([label, value]) => ({ label, value }));
+      if (!entries.length) {
+        return { labels: [], values: [] };
+      }
+      entries.sort((a, b) => compareReturnPeriod(a.label, b.label));
+      return {
+        labels: entries.map((entry) => entry.label),
+        values: entries.map((entry) => entry.value),
+      };
+    }
+
+    function getGaugeValue(gauge) {
+      if (!gauge) return null;
+      const durations = gauge.intensities || {};
+      const durationKeys = Object.keys(durations);
+      if (!durationKeys.length) {
+        return { durationKey: state.selectedDuration || DEFAULT_DURATION, returnKey: state.selectedReturnPeriod || "n/a", value: null };
+      }
+
+      let durationKey = null;
+      if (state.selectedDuration && durations[state.selectedDuration]) {
+        durationKey = state.selectedDuration;
+      } else {
+        durationKeys.sort(compareDuration);
+        durationKey = durationKeys[0];
+      }
+
+      const rpMap = durations[durationKey] || {};
+      const rpKeys = Object.keys(rpMap);
+      if (!rpKeys.length) {
+        return { durationKey, returnKey: state.selectedReturnPeriod || "n/a", value: null };
+      }
+
+      let returnKey = null;
+      if (state.selectedReturnPeriod && rpMap[state.selectedReturnPeriod] != null) {
+        returnKey = state.selectedReturnPeriod;
+      } else if (state.selectedReturnPeriod) {
+        returnKey = state.selectedReturnPeriod;
+      } else {
+        rpKeys.sort(compareReturnPeriod);
+        returnKey = rpKeys[0];
+      }
+
+      const value = rpMap[returnKey];
+      return { durationKey, returnKey, value };
+    }
+
+    function buildGaugePopupContent(gauge) {
+      if (!gauge) {
+        return "";
+      }
+      const info = getGaugeValue(gauge);
+      const durationLabel = info?.durationKey || state.selectedDuration || DEFAULT_DURATION;
+      const returnLabel = info?.returnKey || state.selectedReturnPeriod || "n/a";
+      const value = info?.value;
+      const unitsLabel = defaultUnits;
+      const valueText = value == null ? "no data" : `${value.toFixed(2)} ${unitsLabel}`;
+      return `
+        <div class="popup-content">
+          <div>Rain gauge: <strong>${gauge.station}</strong></div>
+          <div>${gauge.lat.toFixed(3)}°N, ${gauge.lon.toFixed(3)}°E</div>
+          <div><strong>${durationLabel} – ${returnLabel}</strong></div>
+          <div>Value: ${valueText}</div>
+        </div>
+      `;
+    }
+
+    function updateGaugePopup() {
+      const marker = state.selectedGaugeMarker;
+      const gauge = state.selectedGauge;
+      if (!marker || !gauge) return;
+      const content = buildGaugePopupContent(gauge);
+      if (!content) return;
+      if (marker.getPopup()) {
+        marker.setPopupContent(content);
+        if (marker.isPopupOpen && marker.isPopupOpen()) {
+          marker.openPopup();
+        }
+      } else {
+        marker.bindPopup(content);
+      }
+    }
+
+    function handleRiverClick(river) {
+      if (!river) return;
+      state.selectedRiver = river;
+      state.selectedGauge = null;
+      state.selectedGaugeMarker = null;
+      state.selectedPoint = null;
+      if (state.highlightCell && state.map) {
+        state.map.removeLayer(state.highlightCell);
+        state.highlightCell = null;
+      }
+      document.getElementById("searchFeedback").textContent = "";
+      const locationText = `${river.lat.toFixed(2)}°N, ${river.lon.toFixed(2)}°E`;
+      refreshSelectionInfo(`River basin ${river.name} (${locationText})`);
+      updateSidebarChart();
+    }
+
+    function buildRiverSeries(river) {
+      if (!river) {
+        return { labels: [], values: [] };
+      }
+      const entries = Object.entries(river.returnPeriods || {})
+        .filter(([, value]) => Number.isFinite(value))
+        .map(([label, value]) => ({ label, value }));
+      if (!entries.length) {
+        return { labels: [], values: [] };
+      }
+      entries.sort((a, b) => compareReturnPeriod(a.label, b.label));
+      return {
+        labels: entries.map((entry) => entry.label),
+        values: entries.map((entry) => entry.value),
+      };
+    }
+
+    function normalizeUnits(units) {
+      if (!units) return defaultUnits;
+      if (typeof units !== "string") return defaultUnits;
+      return units.replace(/\/h\b/i, "/hr");
+    }
+
+    function prepareCoordinates() {
+      const lat = state.dataset.lat;
+      const lon = state.dataset.lon;
+      state.lat = lat.slice();
+      state.lon = lon.slice();
+
+      if (lat.length < 2 || lon.length < 2) {
+        throw new Error("Latitude/longitude dimensions are insufficient.");
+      }
+
+      state.latSpacing = Math.abs(lat[1] - lat[0]);
+      state.lonSpacing = Math.abs(lon[1] - lon[0]);
+      state.latNorthEdge = lat[0] + state.latSpacing / 2;
+      state.latSouthEdge = lat[lat.length - 1] - state.latSpacing / 2;
+      state.lonWestEdge = lon[0] - state.lonSpacing / 2;
+      state.lonEastEdge = lon[lon.length - 1] + state.lonSpacing / 2;
+    }
+
+    function buildVariableIndex() {
+      const variableNames = Object.keys(state.dataset.variables);
+      const durations = new Set();
+      const returnPeriodsByDuration = {};
+      const comboSet = new Set();
+
+      variableNames.forEach((name) => {
+        const [duration, returnPeriod] = name.split("_");
+        if (!duration || !returnPeriod) return;
+        durations.add(duration);
+        if (!returnPeriodsByDuration[duration]) {
+          returnPeriodsByDuration[duration] = new Set();
+        }
+        returnPeriodsByDuration[duration].add(returnPeriod);
+        comboSet.add(name);
+      });
+
+      const sortedDurations = Array.from(durations).sort(compareDuration);
+      const normalized = {};
+      sortedDurations.forEach((duration) => {
+        const periods = returnPeriodsByDuration[duration] ? Array.from(returnPeriodsByDuration[duration]) : [];
+        normalized[duration] = periods.sort(compareReturnPeriod);
+      });
+
+      state.durations = sortedDurations;
+      state.returnPeriodsByDuration = normalized;
+      state.comboSet = comboSet;
+
+      if (!sortedDurations.length) {
+        state.selectedDuration = null;
+        state.selectedReturnPeriod = null;
+        return;
+      }
+
+      let initialDuration = state.selectedDuration && normalized[state.selectedDuration] ? state.selectedDuration : null;
+      if (!initialDuration) {
+        initialDuration = sortedDurations.includes(DEFAULT_DURATION) ? DEFAULT_DURATION : sortedDurations[0];
+      }
+
+      const candidateReturnPeriods = normalized[initialDuration] || [];
+      let initialReturn =
+        state.selectedReturnPeriod && candidateReturnPeriods.includes(state.selectedReturnPeriod)
+          ? state.selectedReturnPeriod
+          : null;
+      if (!initialReturn) {
+        initialReturn = candidateReturnPeriods.includes(DEFAULT_RETURN_PERIOD)
+          ? DEFAULT_RETURN_PERIOD
+          : candidateReturnPeriods[0] || null;
+      }
+
+      state.selectedDuration = initialDuration;
+      state.selectedReturnPeriod = initialReturn;
+    }
+
+    function initializeSelectors() {
+      const durationSelect = document.getElementById("durationSelect");
+      const returnSelect = document.getElementById("returnSelect");
+
+      durationSelect.innerHTML = "";
+      state.durations.forEach((duration) => {
+        const option = document.createElement("option");
+        option.value = duration;
+        option.textContent = duration;
+        durationSelect.appendChild(option);
+      });
+      durationSelect.disabled = state.durations.length === 0;
+      if (state.selectedDuration) {
+        durationSelect.value = state.selectedDuration;
+      }
+
+      updateReturnSelectOptions();
+
+      durationSelect.addEventListener("change", handleDurationChange);
+      returnSelect.addEventListener("change", handleReturnPeriodChange);
+    }
+
+    function setupOpacityControl() {
+      const slider = document.getElementById("opacitySlider");
+      const valueLabel = document.getElementById("opacityValue");
+      if (!slider || !valueLabel) return;
+
+      const initial = Number(slider.value);
+      if (Number.isFinite(initial)) {
+        state.currentOpacity = clamp(initial, 0.2, 1);
+        valueLabel.textContent = state.currentOpacity.toFixed(2);
+        slider.value = state.currentOpacity;
+      } else {
+        slider.value = state.currentOpacity;
+        valueLabel.textContent = state.currentOpacity.toFixed(2);
+      }
+
+      slider.addEventListener("input", (event) => {
+        const val = Number(event.target.value);
+        if (!Number.isFinite(val)) return;
+        state.currentOpacity = clamp(val, 0.2, 1);
+        valueLabel.textContent = state.currentOpacity.toFixed(2);
+        slider.value = state.currentOpacity;
+        refreshCellOpacity();
+      });
+    }
+
+    function refreshCellOpacity() {
+      if (!state.currentVariable) return;
+      applyVariableColors(state.currentVariable);
+    }
+
+    function showGridLayer() {
+      if (!state.gridLayer || !state.map) return;
+      if (!state.map.hasLayer(state.gridLayer)) {
+        state.gridLayer.addTo(state.map);
+      }
+      refreshCellOpacity();
+    }
+
+    function hideGridLayer() {
+      if (!state.gridLayer || !state.map) return;
+      state.gridLayer.removeFrom(state.map);
+    }
+
+    function bringOverlayToFront(type) {
+      if (!state.map) return;
+      if (type === "gauge" && state.gaugePane) {
+        state.gaugePane.style.zIndex = 650;
+      }
+      if (type === "river" && state.riverPane) {
+        state.riverPane.style.zIndex = 655;
+      }
+      if (type === "grid" && state.gridLayer) {
+        state.gridLayer.eachLayer((layer) => {
+          if (layer.bringToBack) layer.bringToBack();
+        });
+      }
+    }
+
+    function setupSidebarToggle() {
+      const toggle = document.getElementById("sidebarToggle");
+      const scrim = document.getElementById("scrim");
+      const collapseBtn = document.getElementById("sidebarCollapseBtn");
+      if (!toggle) return;
+
+      let lastIsDesktop = null;
+
+      if (!document.body.classList.contains("sidebar-open")) {
+        document.body.classList.add("sidebar-open");
+      }
+
+      const refreshMapSize = (delay = 300) => {
+        setTimeout(() => {
+          if (state.map) {
+            state.map.invalidateSize();
+          }
+          updateSidebarChart();
+        }, delay);
+      };
+
+      const updateToggleLabel = () => {
+        if (!toggle) return;
+        toggle.textContent = document.body.classList.contains("sidebar-open") ? "Close Controls" : "» Controls";
+      };
+
+      const openSidebar = () => {
+        document.body.classList.add("sidebar-open");
+        toggle.setAttribute("aria-expanded", "true");
+        updateToggleLabel();
+        refreshMapSize();
+      };
+
+      const closeSidebar = () => {
+        document.body.classList.remove("sidebar-open");
+        toggle.setAttribute("aria-expanded", "false");
+        updateToggleLabel();
+        refreshMapSize();
+      };
+
+      const toggleSidebar = () => {
+        if (document.body.classList.contains("sidebar-open")) {
+          closeSidebar();
+        } else {
+          openSidebar();
+        }
+      };
+
+      toggle.addEventListener("click", toggleSidebar);
+      collapseBtn?.addEventListener("click", closeSidebar);
+
+      scrim?.addEventListener("click", closeSidebar);
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && window.innerWidth <= 900 && document.body.classList.contains("sidebar-open")) {
+          closeSidebar();
+        }
+      });
+
+      const handleResize = () => {
+        const isDesktop = window.innerWidth > 900;
+        if (lastIsDesktop === isDesktop) {
+          return;
+        }
+        lastIsDesktop = isDesktop;
+        if (isDesktop) {
+          if (!document.body.classList.contains("sidebar-open")) {
+            // keep collapsed state; just ensure toggle label
+            updateToggleLabel();
+          } else {
+            openSidebar();
+          }
+          refreshMapSize(50);
+        } else {
+          // Default to open on mobile for easier access
+          openSidebar();
+          refreshMapSize(50);
+        }
+      };
+
+      window.addEventListener("resize", handleResize);
+      updateToggleLabel();
+      handleResize();
+    }
+
+    function setupChartInteraction() {
+      if (state.chartInteractionReady) return;
+      const canvas = document.getElementById("sidebarChart");
+      const tooltip = document.getElementById("chartTooltip");
+      if (!canvas || !tooltip) return;
+      const container = canvas.parentElement;
+      if (!container) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      state.chartCanvas = canvas;
+      state.chartCanvasCtx = ctx;
+      state.chartTooltipEl = tooltip;
+      state.chartContainer = container;
+      canvas.addEventListener("mousemove", handleChartMouseMove);
+      canvas.addEventListener("mouseleave", handleChartMouseLeave);
+      state.chartInteractionReady = true;
+    }
+
+    function handleChartMouseMove(event) {
+      if (!state.chartData || !state.chartPoints.length || !state.chartCanvas) {
+        hideChartTooltip();
+        return;
+      }
+      const canvas = state.chartCanvas;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.clientWidth > 0 ? canvas.clientWidth / canvas.width : 1;
+      const scaleY = canvas.clientHeight > 0 ? canvas.clientHeight / canvas.height : 1;
+      const canvasX = (event.clientX - rect.left) / scaleX;
+      const canvasY = (event.clientY - rect.top) / scaleY;
+      const index = getChartHoverIndex(canvasX, canvasY);
+      if (index == null) {
+        if (state.chartHoverIndex != null) {
+          state.chartHoverIndex = null;
+          renderCurrentChart();
+        }
+        hideChartTooltip();
+        return;
+      }
+      if (state.chartHoverIndex !== index) {
+        state.chartHoverIndex = index;
+        renderCurrentChart();
+      }
+      showChartTooltip(index);
+    }
+
+    function handleChartMouseLeave() {
+      if (state.chartHoverIndex != null) {
+        state.chartHoverIndex = null;
+        renderCurrentChart();
+      }
+      hideChartTooltip();
+    }
+
+    function getChartHoverIndex(canvasX, canvasY) {
+      const points = state.chartPoints || [];
+      if (!points.length) return null;
+      let closestIndex = null;
+      let closestDistance = Infinity;
+      const threshold = 12;
+      for (let idx = 0; idx < points.length; idx += 1) {
+        const pt = points[idx];
+        const dx = canvasX - pt.x;
+        const dy = canvasY - pt.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestIndex = idx;
+        }
+      }
+      return closestDistance <= threshold ? closestIndex : null;
+    }
+
+    function showChartTooltip(index) {
+      const tooltip = state.chartTooltipEl;
+      const container = state.chartContainer;
+      const canvas = state.chartCanvas;
+      const data = state.chartData;
+      if (!tooltip || !container || !canvas || !data) return;
+      if (index == null || index < 0 || index >= data.labels.length) {
+        hideChartTooltip();
+        return;
+      }
+      const point = state.chartPoints[index];
+      if (!point) return;
+      const scaleX = canvas.clientWidth > 0 ? canvas.clientWidth / canvas.width : 1;
+      const scaleY = canvas.clientHeight > 0 ? canvas.clientHeight / canvas.height : 1;
+      const left = point.x * scaleX;
+      const top = point.y * scaleY;
+      tooltip.style.left = `${left}px`;
+      tooltip.style.top = `${top}px`;
+      const units = data.unitsLabel || defaultUnits;
+      const rawValue = data.values[index];
+      const valueText = Number.isFinite(rawValue) ? rawValue.toFixed(2) : "n/a";
+      const labelText = data.labels[index];
+      tooltip.textContent = `${labelText}: ${valueText} ${units}`;
+      tooltip.hidden = false;
+      tooltip.setAttribute("data-visible", "true");
+    }
+
+    function hideChartTooltip() {
+      const tooltip = state.chartTooltipEl;
+      if (!tooltip) return;
+      tooltip.hidden = true;
+      tooltip.removeAttribute("data-visible");
+      tooltip.textContent = "";
+    }
+
+    function renderCurrentChart() {
+      if (!state.chartCanvasCtx || !state.chartData) return;
+      state.chartPoints = renderLineChart(state.chartCanvasCtx, state.chartData, state.chartHoverIndex);
+    }
+
+    function updateReturnSelectOptions() {
+      const returnSelect = document.getElementById("returnSelect");
+      const duration = state.selectedDuration;
+      const options = duration ? state.returnPeriodsByDuration[duration] || [] : [];
+
+      returnSelect.innerHTML = "";
+      options.forEach((period) => {
+        const option = document.createElement("option");
+        option.value = period;
+        option.textContent = period;
+        returnSelect.appendChild(option);
+      });
+
+      returnSelect.disabled = options.length === 0;
+      if (options.length) {
+        if (!options.includes(state.selectedReturnPeriod)) {
+          state.selectedReturnPeriod = options[0];
+        }
+        returnSelect.value = state.selectedReturnPeriod;
+      } else {
+        state.selectedReturnPeriod = null;
+      }
+    }
+
+    function handleDurationChange(event) {
+      state.selectedDuration = event.target.value;
+      updateReturnSelectOptions();
+      updateVariableFromSelection();
+      updateSidebarChart();
+      updateGaugePopup();
+    }
+
+    function handleReturnPeriodChange(event) {
+      state.selectedReturnPeriod = event.target.value;
+      updateVariableFromSelection();
+      updateSidebarChart();
+      updateGaugePopup();
+    }
+
+    function renderPopupContent(info, unitsLabel) {
+      const variableName = state.currentVariable?.name || `${state.selectedDuration}_${state.selectedReturnPeriod}`;
+      return `
+        <div class="popup-content">
+          <div><strong>${variableName}</strong></div>
+          <div>${info.latCenter.toFixed(2)}°N, ${info.lonCenter.toFixed(2)}°E</div>
+          <div>Value: ${info.value == null ? "no data" : `${info.value.toFixed(2)} ${unitsLabel}`}</div>
+        </div>
+      `;
+    }
+
+    function setSelectedPoint(info) {
+      state.selectedGauge = null;
+      state.selectedGaugeMarker = null;
+      state.selectedRiver = null;
+      state.selectedPoint = {
+        latIdx: info.latIdx,
+        lonIdx: info.lonIdx,
+        lat: info.latCenter,
+        lon: info.lonCenter,
+      };
+      updateSidebarChart();
+    }
+
+    function clearSelectedPoint() {
+      state.selectedPoint = null;
+      updateSidebarChart();
+    }
+
+    function updateSidebarChart() {
+      const block = document.getElementById("chartBlock");
+      const labelEl = document.getElementById("chartLocationLabel");
+      const canvas = document.getElementById("sidebarChart");
+      if (!block || !labelEl || !canvas) return;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      if (!state.chartInteractionReady) {
+        setupChartInteraction();
+      }
+
+      state.chartCanvas = canvas;
+      state.chartCanvasCtx = ctx;
+      state.chartContainer = canvas.parentElement || state.chartContainer;
+      if (!state.chartTooltipEl) {
+        const tooltip = document.getElementById("chartTooltip");
+        if (tooltip) {
+          state.chartTooltipEl = tooltip;
+        }
+      }
+
+      const river = state.selectedRiver;
+      const gauge = state.selectedGauge;
+      const point = state.selectedPoint;
+
+      if (!river && !gauge && !point) {
+        block.hidden = true;
+        labelEl.textContent = "Click the map, a gauge, or a river site to plot intensities.";
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        state.chartData = null;
+        state.chartPoints = [];
+        state.chartHoverIndex = null;
+        hideChartTooltip();
+        return;
+      }
+
+      block.hidden = false;
+      ensureChartCanvasSize(canvas);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      state.chartHoverIndex = null;
+      hideChartTooltip();
+
+      if (river) {
+        const dataset = buildRiverSeries(river);
+        if (!dataset.labels.length) {
+          labelEl.textContent = `River basin ${river.name}: no discharge data`;
+          state.chartData = null;
+          state.chartPoints = [];
+          drawPlaceholderMessage(ctx, "River discharge data unavailable");
+          return;
+        }
+        const unitsLabel = river.units || "m³/s";
+        labelEl.textContent = `River discharge (${unitsLabel}) profile at "${river.name}"`;
+        state.chartData = {
+          labels: dataset.labels,
+          values: dataset.values,
+          unitsLabel,
+          source: { type: "river", name: river.name },
+        };
+        state.chartPoints = renderLineChart(ctx, state.chartData, state.chartHoverIndex);
+        return;
+      }
+
+      if (gauge) {
+        const durationKey = state.selectedDuration || DEFAULT_DURATION;
+        const dataset = buildGaugeSeries(gauge, durationKey);
+        if (!dataset.labels.length) {
+          labelEl.textContent = `Gauge station ${gauge.station}: no data for ${durationKey}`;
+          state.chartData = null;
+          state.chartPoints = [];
+          drawPlaceholderMessage(ctx, "Gauge data unavailable for this duration");
+          return;
+        }
+        const unitsLabel = defaultUnits;
+        labelEl.textContent = `${durationKey} rainfall (${unitsLabel}) profile at "${gauge.station}" gauge station`;
+        state.chartData = {
+          labels: dataset.labels,
+          values: dataset.values,
+          unitsLabel,
+          source: { type: "gauge", name: gauge.station },
+        };
+        state.chartPoints = renderLineChart(ctx, state.chartData, state.chartHoverIndex);
+        return;
+      }
+
+      const { latIdx, lonIdx, lat, lon } = point;
+      const dataset = gatherDurationSeries(state.selectedDuration, latIdx, lonIdx);
+      if (!dataset.labels.length) {
+        labelEl.textContent = `No data for ${state.selectedDuration} at ${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E`;
+        state.chartData = null;
+        state.chartPoints = [];
+        drawPlaceholderMessage(ctx, "No data for this duration");
+        return;
+      }
+
+      const unitsLabel = state.currentUnits || defaultUnits;
+      labelEl.textContent = `${state.selectedDuration} rainfall (${unitsLabel}) profile at ${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E`;
+      state.chartData = {
+        labels: dataset.labels,
+        values: dataset.values,
+        unitsLabel,
+        source: { type: "grid", lat, lon },
+      };
+      state.chartPoints = renderLineChart(ctx, state.chartData, state.chartHoverIndex);
+    }
+
+    function ensureChartCanvasSize(canvas) {
+      const container = canvas.parentElement;
+      if (!container) return;
+      const availableWidth = container.clientWidth || 320;
+      const width = Math.max(280, Math.floor(availableWidth));
+      const height = Math.round(width * 0.62);
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+    }
+
+    function drawPlaceholderMessage(ctx, message) {
+      ctx.fillStyle = "#486581";
+      ctx.font = "13px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(message, ctx.canvas.width / 2, ctx.canvas.height / 2);
+    }
+
+    function renderLineChart(ctx, data, hoverIndex = null) {
+      if (!data || !Array.isArray(data.labels) || !Array.isArray(data.values) || !data.labels.length || !data.values.length) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        return [];
+      }
+      const { labels, values } = data;
+      const width = ctx.canvas.width;
+      const height = ctx.canvas.height;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+
+      const paddingLeft = 60;
+      const paddingRight = 32;
+      const paddingTop = 28;
+      const paddingBottom = 68;
+      const plotWidth = width - paddingLeft - paddingRight;
+      const plotHeight = height - paddingTop - paddingBottom;
+
+      const minVal = Math.min(...values);
+      const maxVal = Math.max(...values);
+      const range = maxVal - minVal || 1;
+
+      ctx.strokeStyle = "#334e68";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(paddingLeft, paddingTop);
+      ctx.lineTo(paddingLeft, paddingTop + plotHeight);
+      ctx.lineTo(paddingLeft + plotWidth, paddingTop + plotHeight);
+      ctx.stroke();
+
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = "#d9e2ec";
+      ctx.beginPath();
+      ctx.moveTo(paddingLeft, paddingTop + plotHeight / 2);
+      ctx.lineTo(paddingLeft + plotWidth, paddingTop + plotHeight / 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const points = labels.map((label, idx) => {
+        const x = labels.length === 1 ? paddingLeft + plotWidth / 2 : paddingLeft + (plotWidth * idx) / (labels.length - 1);
+        const y = paddingTop + plotHeight - ((values[idx] - minVal) / range) * plotHeight;
+        return { x, y };
+      });
+
+      ctx.strokeStyle = "#2f6fdd";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      points.forEach((pt, idx) => {
+        if (idx === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+
+      ctx.fillStyle = "#2f6fdd";
+      points.forEach((pt) => {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      if (hoverIndex != null && hoverIndex >= 0 && hoverIndex < points.length) {
+        const hoverPoint = points[hoverIndex];
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = "rgba(47, 111, 221, 0.45)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(hoverPoint.x, paddingTop);
+        ctx.lineTo(hoverPoint.x, paddingTop + plotHeight);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.save();
+        ctx.fillStyle = "#f97316";
+        ctx.beginPath();
+        ctx.arc(hoverPoint.x, hoverPoint.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      ctx.fillStyle = "#243b53";
+      ctx.font = "11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      const minLabelSpacing = 48;
+      const maxLabels = Math.max(1, Math.floor(plotWidth / minLabelSpacing));
+      const step = Math.max(1, Math.ceil(labels.length / maxLabels));
+      labels.forEach((label, idx) => {
+        if (idx === 0 || idx === labels.length - 1 || idx % step === 0) {
+          ctx.fillText(label, points[idx].x, paddingTop + plotHeight + 6);
+        }
+      });
+
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText("Return period", paddingLeft + plotWidth / 2, paddingTop + plotHeight + 28);
+      ctx.restore();
+
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      if (Math.abs(maxVal - minVal) < 1e-6) {
+        ctx.fillText(`${maxVal.toFixed(1)}`, paddingLeft - 8, paddingTop + plotHeight / 2);
+      } else {
+        ctx.fillText(`${maxVal.toFixed(1)}`, paddingLeft - 8, paddingTop);
+        ctx.fillText(`${minVal.toFixed(1)}`, paddingLeft - 8, paddingTop + plotHeight);
+        if (labels.length > 2) {
+          const midVal = minVal + range / 2;
+          ctx.fillText(`${midVal.toFixed(1)}`, paddingLeft - 8, paddingTop + plotHeight / 2);
+        }
+      }
+      return points;
+    }
+
+    function gatherDurationSeries(duration, latIdx, lonIdx) {
+      const labels = [];
+      const values = [];
+      const periods = state.returnPeriodsByDuration[duration] || [];
+      periods.forEach((period) => {
+        const key = `${duration}_${period}`;
+        const entry = state.dataset.variables[key];
+        if (!entry || !entry.data) return;
+        const row = entry.data[latIdx];
+        if (!row) return;
+        const value = row[lonIdx];
+        const num = Number(value);
+        if (value == null || !Number.isFinite(num)) return;
+        labels.push(period);
+        values.push(num);
+      });
+      return { labels, values };
+    }
+
+    function updateVariableFromSelection() {
+      if (!state.selectedDuration || !state.selectedReturnPeriod) {
+        document.getElementById("loadingNotice").textContent = "No variable available for the selected combination.";
+        return Promise.resolve();
+      }
+      const key = `${state.selectedDuration}_${state.selectedReturnPeriod}`;
+      if (!state.comboSet.has(key)) {
+        document.getElementById("loadingNotice").textContent = "No data for the selected duration and return period.";
+        return Promise.resolve();
+      }
+      return setVariable(key).catch((error) => {
+        console.error(error);
+        document.getElementById("loadingNotice").textContent = "Failed to load the selected variable.";
+      });
+    }
+
+    function compareDuration(a, b) {
+      const diff = parseDurationValue(a) - parseDurationValue(b);
+      return diff === 0 ? a.localeCompare(b) : diff;
+    }
+
+    function compareReturnPeriod(a, b) {
+      const diff = parseReturnPeriodValue(a) - parseReturnPeriodValue(b);
+      return diff === 0 ? a.localeCompare(b) : diff;
+    }
+
+    function parseDurationValue(token) {
+      const match = /^(\d+(?:\.\d+)?)([a-zA-Z]+)/.exec(token);
+      if (!match) return Number.POSITIVE_INFINITY;
+      const value = parseFloat(match[1]);
+      const unit = match[2].toLowerCase();
+      if (unit === "hr" || unit === "h" || unit === "hours" || unit === "hour") {
+        return value;
+      }
+      if (unit === "min" || unit === "m") {
+        return value / 60;
+      }
+      return value;
+    }
+
+    function parseReturnPeriodValue(token) {
+      const match = /^(\d+(?:\.\d+)?)/.exec(token);
+      if (!match) return Number.POSITIVE_INFINITY;
+      return parseFloat(match[1]);
+    }
+
+    function createGridLayers() {
+      const map = state.map;
+      const cells = [];
+      const latCount = state.lat.length;
+      const lonCount = state.lon.length;
+      const halfLat = state.latSpacing / 2;
+      const halfLon = state.lonSpacing / 2;
+
+      for (let i = 0; i < latCount; i += 1) {
+        const latCenter = state.lat[i];
+        const latNorth = latCenter + halfLat;
+        const latSouth = latCenter - halfLat;
+      for (let j = 0; j < lonCount; j += 1) {
+        const lonCenter = state.lon[j];
+        const lonWest = lonCenter - halfLon;
+        const lonEast = lonCenter + halfLon;
+        const layer = L.rectangle(
+          [
+            [latSouth, lonWest],
+            [latNorth, lonEast],
+          ],
+          {
+              stroke: false,
+              fillOpacity: 0,
+              fillColor: "#ffffff",
+              interactive: false,
+            }
+          );
+          layer.addTo(map);
+          cells.push({ layer, i, j });
+        }
+      }
+
+      state.cells = cells;
+      if (!state.gridLayer) {
+        state.gridLayer = L.layerGroup(cells.map((cell) => cell.layer));
+        if (state.layersControl) {
+          state.layersControl.addOverlay(state.gridLayer, "Rainfall Grid");
+        }
+        state.gridLayer.addTo(map);
+      }
+    }
+
+    async function setVariable(name) {
+      if (!name) return;
+      const entry = await ensureVariableLoaded(name);
+      state.currentVariable = entry;
+
+      state.currentUnits = normalizeUnits(entry.units);
+      document.getElementById("loadingNotice").textContent = "";
+
+      applyVariableColors(entry);
+      updateColorbar(entry.min, entry.max);
+      refreshHoverInfo();
+      refreshSelectionInfo();
+      updateSidebarChart();
+    }
+
+    async function ensureVariableLoaded(name) {
+      if (state.variables[name]?.loaded) {
+        return state.variables[name];
+      }
+      document.getElementById("loadingNotice").textContent = `Loading ${name}…`;
+      const variable = state.dataset.variables[name];
+      if (!variable) {
+        throw new Error(`Variable ${name} not found in dataset.`);
+      }
+      const entry = {
+        name,
+        data: variable.data,
+        min: variable.min,
+        max: variable.max,
+        units: variable.units,
+        longName: variable.long_name || variable.longName || name,
+        loaded: true,
+      };
+      state.variables[name] = entry;
+      return entry;
+    }
+
+    function applyVariableColors(entry) {
+      const { data, min, max } = entry;
+      if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
+        state.cells.forEach(({ layer }) => layer.setStyle({ fillOpacity: 0 }));
+        state.currentScale = null;
+        return;
+      }
+
+      const scale = createColorScale(min, max);
+      state.currentScale = scale;
+
+      for (const { layer, i, j } of state.cells) {
+        const value = data[i][j];
+        if (value == null || !Number.isFinite(value)) {
+          layer.setStyle({ fillOpacity: 0 });
+        } else {
+          layer.setStyle({
+            fillColor: scale(value).hex(),
+            fillOpacity: state.currentOpacity,
+          });
+        }
+      }
+    }
+
+    function updateColorbar(min, max) {
+      const gradientEl = document.getElementById("gradient");
+      const minLabel = document.getElementById("minLabel");
+      const maxLabel = document.getElementById("maxLabel");
+      if (!Number.isFinite(min) || !Number.isFinite(max) || min === max || !state.currentScale) {
+        gradientEl.style.background = "#d9e2ec";
+        minLabel.textContent = "n/a";
+        maxLabel.textContent = "n/a";
+        return;
+      }
+
+      const stops = 12;
+      const parts = [];
+      for (let idx = 0; idx < stops; idx += 1) {
+        const fraction = idx / (stops - 1);
+        const value = min + fraction * (max - min);
+        parts.push(`${state.currentScale(value).hex()} ${fraction * 100}%`);
+      }
+      gradientEl.style.background = `linear-gradient(to right, ${parts.join(", ")})`;
+      const unitsLabel = state.currentUnits || defaultUnits;
+      minLabel.textContent = `${min.toFixed(2)} ${unitsLabel}`;
+      maxLabel.textContent = `${max.toFixed(2)} ${unitsLabel}`;
+    }
+
+    function handleHover(latlng) {
+      if (!latlng || !state.currentVariable) {
+        return;
+      }
+      const info = getCellInfo(latlng.lat, latlng.lng);
+      if (!info || !info.withinBounds) {
+        document.getElementById("hoverInfo").textContent = "Outside data extent.";
+        return;
+      }
+      const { value, latCenter, lonCenter } = info;
+      if (value == null) {
+        document.getElementById("hoverInfo").textContent = `Lat ${latCenter.toFixed(2)}, Lon ${lonCenter.toFixed(2)} → no data`;
+      } else {
+        const unitsLabel = state.currentUnits || defaultUnits;
+        document.getElementById("hoverInfo").textContent = `Lat ${latCenter.toFixed(2)}, Lon ${lonCenter.toFixed(2)} → ${value.toFixed(2)} ${unitsLabel}`;
+      }
+    }
+
+    function refreshHoverInfo() {
+      document.getElementById("hoverInfo").textContent = "Move the cursor over the map.";
+    }
+
+    function refreshSelectionInfo(message) {
+      document.getElementById("selectionInfo").textContent = message || "Use the search box, click the map, or select a gauge or river site.";
+    }
+
+    function highlightLocation(lat, lon, { pan = true, fromClick = false } = {}) {
+      if (!state.currentVariable) return;
+      state.selectedGauge = null;
+      state.selectedGaugeMarker = null;
+      state.selectedRiver = null;
+      const info = getCellInfo(lat, lon);
+      if (!info || !info.withinBounds) {
+        const feedback = lat.toFixed && lon.toFixed ? `Location ${lat.toFixed(2)}, ${lon.toFixed(2)} is outside the data extent.` : "Outside data extent.";
+        document.getElementById("searchFeedback").textContent = feedback;
+        refreshSelectionInfo("No data at the requested location.");
+        if (state.highlightCell) {
+          state.map.removeLayer(state.highlightCell);
+          state.highlightCell = null;
+        }
+        clearSelectedPoint();
+        return;
+      }
+
+      if (pan) {
+        state.map.flyTo([info.latCenter, info.lonCenter], Math.max(state.map.getZoom(), 12), { duration: 0.75 });
+      }
+
+      const bounds = [
+        [info.latSouth, info.lonWest],
+        [info.latNorth, info.lonEast],
+      ];
+      if (!state.highlightCell) {
+        state.highlightCell = L.rectangle(bounds, {
+          color: "#111d4a",
+          weight: 2,
+          fill: false,
+        }).addTo(state.map);
+      } else {
+        state.highlightCell.setBounds(bounds);
+      }
+
+      const unitsLabel = state.currentUnits || defaultUnits;
+      const valueText = info.value == null ? "no data" : `${info.value.toFixed(2)} ${unitsLabel}`;
+      const message = `Lat ${info.latCenter.toFixed(2)}, Lon ${info.lonCenter.toFixed(2)} → ${valueText}`;
+      document.getElementById("searchFeedback").textContent = "";
+      refreshSelectionInfo(message);
+
+      setSelectedPoint(info);
+
+      if (fromClick) {
+        L.popup({ maxWidth: 360, className: "rainfall-popup" })
+          .setLatLng([info.latCenter, info.lonCenter])
+          .setContent(renderPopupContent(info, unitsLabel))
+          .openOn(state.map);
+      }
+    }
+
+    function getCellInfo(lat, lon) {
+      if (
+        lat == null ||
+        lon == null ||
+        lat > state.latNorthEdge ||
+        lat < state.latSouthEdge ||
+        lon < state.lonWestEdge ||
+        lon > state.lonEastEdge ||
+        !state.currentVariable
+      ) {
+        return { withinBounds: false };
+      }
+
+      const latIdx = clamp(Math.round((state.lat[0] - lat) / state.latSpacing), 0, state.lat.length - 1);
+      const lonIdx = clamp(Math.round((lon - state.lon[0]) / state.lonSpacing), 0, state.lon.length - 1);
+      const latCenter = state.lat[latIdx];
+      const lonCenter = state.lon[lonIdx];
+      const value = state.currentVariable.data[latIdx][lonIdx];
+      const halfLat = state.latSpacing / 2;
+      const halfLon = state.lonSpacing / 2;
+
+      return {
+        withinBounds: true,
+        latIdx,
+        lonIdx,
+        latCenter,
+        lonCenter,
+        latNorth: latCenter + halfLat,
+        latSouth: latCenter - halfLat,
+        lonWest: lonCenter - halfLon,
+        lonEast: lonCenter + halfLon,
+        value,
+      };
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    document.getElementById("searchForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const input = document.getElementById("searchInput").value.trim();
+      if (!input) {
+        document.getElementById("searchFeedback").textContent = "Enter latitude and longitude separated by a comma.";
+        return;
+      }
+      const parts = input.split(/[,\\s]+/).filter(Boolean);
+      if (parts.length !== 2) {
+        document.getElementById("searchFeedback").textContent = "Please provide exactly two numbers: latitude, longitude.";
+        return;
+      }
+      const lat = Number(parts[0]);
+      const lon = Number(parts[1]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        document.getElementById("searchFeedback").textContent = "Latitude and longitude must be valid numbers.";
+        return;
+      }
+      highlightLocation(lat, lon, { pan: true, fromClick: false });
+    });
+
+    document.addEventListener("DOMContentLoaded", init);
+    window.addEventListener("resize", () => {
+      if (state.map) {
+        state.map.invalidateSize();
+      }
+      updateSidebarChart();
+    });
+
+    const returnInfoButton = document.getElementById("returnInfoBtn");
+    if (returnInfoButton) {
+      const popover = document.createElement("div");
+      popover.id = "returnInfoPopover";
+      popover.className = "popover popover-hidden";
+      popover.innerHTML = `
+        <strong>Return period</strong>
+        <p>The return period is the average interval between events that exceed a given intensity. A 100-year return period means an estimated 1% chance of that intensity being met or exceeded in any year.</p>
+        <p>Probability each year: <em>p = 1 / T</em>, where <em>T</em> is the return period in years.</p>
+      `;
+      document.body.appendChild(popover);
+
+      function hidePopover() {
+        popover.classList.add("popover-hidden");
+        returnInfoButton.setAttribute("aria-expanded", "false");
+      }
+
+      function showPopover() {
+        const rect = returnInfoButton.getBoundingClientRect();
+        popover.style.top = `${window.scrollY + rect.bottom + 8}px`;
+        popover.style.left = `${window.scrollX + rect.left}px`;
+        popover.classList.remove("popover-hidden");
+        returnInfoButton.setAttribute("aria-expanded", "true");
+      }
+
+      returnInfoButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const expanded = returnInfoButton.getAttribute("aria-expanded") === "true";
+        if (expanded) {
+          hidePopover();
+        } else {
+          showPopover();
+        }
+      });
+
+      document.addEventListener("click", (event) => {
+        if (event.target === returnInfoButton || popover.contains(event.target)) {
+          return;
+        }
+        hidePopover();
+      });
+
+      window.addEventListener("resize", hidePopover);
+      window.addEventListener("scroll", hidePopover, true);
+    }
+  </script>
+</body></html>
