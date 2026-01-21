@@ -460,12 +460,12 @@
         <div id="floodControls" style="margin-top: 10px; display: none;">
           <label style="font-size: 11px; font-weight: 700; color: var(--text-muted);">SELECT RETURN PERIOD
             <select id="floodRPSelect">
-              <option value="RP10">10-Year Flood</option>
-              <option value="RP20">20-Year Flood</option>
-              <option value="RP50">50-Year Flood</option>
-              <option value="RP100" selected>100-Year Flood</option>
-              <option value="RP200">200-Year Flood</option>
-              <option value="RP500">500-Year Flood</option>
+              <option value="rp10">10-Year Flood</option>
+              <option value="rp20">20-Year Flood</option>
+              <option value="rp50">50-Year Flood</option>
+              <option value="rp100" selected>100-Year Flood</option>
+              <option value="rp200">200-Year Flood</option>
+              <option value="rp500">500-Year Flood</option>
             </select>
           </label>
         </div>
@@ -582,7 +582,7 @@
       floodDataset: null,
       floodLayer: null,
       showFlood: false,
-      selectedFloodRP: 'RP100'
+      selectedFloodRP: 'rp100'
     };
 
 
@@ -600,7 +600,7 @@
       growStartZoom: 9,
       growEndZoom: 14,
     };
-
+    
     function computeMarkerRadius(zoom) {
       if (!Number.isFinite(zoom)) return MARKER_RADIUS.min;
       if (zoom <= MARKER_RADIUS.growStartZoom) return MARKER_RADIUS.min;
@@ -655,8 +655,8 @@
       setupMap();
       setupSidebarToggle();
       setupChartInteraction();
-      // loadGaugeLocations();
-      // loadRiverStations();
+      loadGaugeLocations();
+      loadRiverStations();
       try {
         const dataset = await fetchDataset();
         state.dataset = dataset;
@@ -777,7 +777,7 @@
           state.layersControl.addOverlay(gaugeLayer, "Gauge Stations");
         }
         if (state.map) {
-          gaugeLayer.addTo(state.map);
+          // gaugeLayer.addTo(state.map);
           updateMarkerSizes();
         }
       } catch (error) {
@@ -949,7 +949,7 @@
           state.layersControl.addOverlay(riverLayer, "River Basins");
         }
         if (state.map) {
-          riverLayer.addTo(state.map);
+          // riverLayer.addTo(state.map);
           updateMarkerSizes();
         }
       } catch (error) {
