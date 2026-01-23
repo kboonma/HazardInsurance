@@ -451,25 +451,7 @@
         </label>
       </div>
 
-      <div class="info-block">
-        <h2>Flood Risk Overlay</h2>
-        <label style="flex-direction: row; align-items: center; gap: 10px;">
-          <input type="checkbox" id="floodToggle" style="width: auto; margin: 0;">
-          <span>Show Flood Layer</span>
-        </label>
-        <div id="floodControls" style="margin-top: 10px; display: none;">
-          <label style="font-size: 11px; font-weight: 700; color: var(--text-muted);">SELECT RETURN PERIOD
-            <select id="floodRPSelect">
-              <option value="rp10">10-Year Flood</option>
-              <option value="rp20">20-Year Flood</option>
-              <option value="rp50">50-Year Flood</option>
-              <option value="rp100" selected>100-Year Flood</option>
-              <option value="rp200">200-Year Flood</option>
-              <option value="rp500">500-Year Flood</option>
-            </select>
-          </label>
-        </div>
-      </div>
+      
 
       <div class="info-block">
         <h2>Lookup Point</h2>
@@ -579,12 +561,7 @@
       chartTooltipEl: null,
       chartContainer: null,
       chartInteractionReady: false,
-      floodDataset: null,
-      floodLayer: null,
-      showFlood: false,
-      selectedFloodRP: 'rp100'
     };
-
 
     const BASE_COLORS = ["#0050FF", "#00FF7F", "#FFE600", "#FF4A00", "#9B00FF"];
     const DEFAULT_DURATION = "1hr";
@@ -600,7 +577,7 @@
       growStartZoom: 9,
       growEndZoom: 14,
     };
-    
+
     function computeMarkerRadius(zoom) {
       if (!Number.isFinite(zoom)) return MARKER_RADIUS.min;
       if (zoom <= MARKER_RADIUS.growStartZoom) return MARKER_RADIUS.min;
@@ -869,60 +846,6 @@
       });
       return marker;
     }
-    async function loadFloodData() {
-        try {
-          const response = await fetch("thailand1km_flood_risk.json");
-          state.floodDataset = await response.json();
-          state.floodLayer = L.layerGroup(); // Layer remains empty until toggled
-        } catch (e) {
-          console.error("Flood data failed to load:", e);
-        }
-      }
-
-      function updateFloodOverlay() {
-        if (!state.floodLayer || !state.floodDataset) return;
-        state.floodLayer.clearLayers();
-
-        if (!state.showFlood) return;
-
-        const hLat = state.latSpacing / 2;
-        const hLon = state.lonSpacing / 2;
-        const rpData = state.floodDataset.variables[state.selectedFloodRP].data;
-
-        // Create a Blue-based scale for flood depth
-        const floodScale = chroma.scale(['#deebf7', '#084594']).domain([0, 5]);
-
-        for (let i = 0; i < state.lat.length; i++) {
-          for (let j = 0; j < state.lon.length; j++) {
-            const depth = rpData[i][j];
-            if (depth > 0) { // Only draw where there is water
-              L.rectangle([
-                [state.lat[i] - hLat, state.lon[j] - hLon],
-                [state.lat[i] + hLat, state.lon[j] + hLon]
-              ], {
-                stroke: false,
-                fillColor: floodScale(depth).hex(),
-                fillOpacity: 0.6,
-                interactive: true
-              }).bindPopup(`Flood Depth: ${depth.toFixed(2)}m`).addTo(state.floodLayer);
-            }
-          }
-        }
-        state.floodLayer.addTo(state.map);
-      }
-
-      // Add listeners to your init() or setupUI()
-      document.getElementById("floodToggle").onchange = (e) => {
-        state.showFlood = e.target.checked;
-        document.getElementById("floodControls").style.display = state.showFlood ? "block" : "none";
-        if (!state.showFlood) state.map.removeLayer(state.floodLayer);
-        else updateFloodOverlay();
-      };
-
-      document.getElementById("floodRPSelect").onchange = (e) => {
-        state.selectedFloodRP = e.target.value;
-        updateFloodOverlay();
-      };
 
     async function loadRiverStations() {
       if (state.riverLayer) return;
@@ -949,7 +872,7 @@
           state.layersControl.addOverlay(riverLayer, "River Basins");
         }
         if (state.map) {
-          // riverLayer.addTo(state.map);
+          riverLayer.addTo(state.map);
           updateMarkerSizes();
         }
       } catch (error) {
@@ -1156,7 +1079,7 @@
         <div class="popup-content">
           <div>Rain gauge: <strong>${gauge.station}</strong></div>
           <div>${gauge.lat.toFixed(3)}°N, ${gauge.lon.toFixed(3)}°E</div>
-          <div><strong>${durationLabel} – ${returnLabel}</strong></div>
+          <div><strong>${durationLabel} ${returnLabel}</strong></div>
           <div>Value: ${valueText}</div>
         </div>
       `;
